@@ -1,5 +1,4 @@
 # viejo-choto-api
-<<<<<<< HEAD
 flask api for my viejo-choto app, all comes down to a couple endpoints to fetch random phrases of some old argentinian guy.
 
 My frontend its a QuasarJS app, and I use it to fetch the data from this api.
@@ -29,6 +28,4 @@ def get_phrase(id):
 ```json
 { "text": "string" }
 ```
-=======
-flask api for my viejo-choto app
->>>>>>> ecd966c56374f2d6ba722004fa5f0b251b3d62fc
+
