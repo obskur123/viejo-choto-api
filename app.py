@@ -26,6 +26,7 @@ dictConfig({
         'handlers': ['wsgi']
     }
 })
+
 app = Flask(__name__)
 load_dotenv()
 app.config['MONGO_URI'] = os.getenv('MONGODB_URI')
@@ -46,9 +47,7 @@ def super_admin_required():
                 return fn(*args, **kwargs)
             else:
                 return jsonify({'msg': "Admins only!"}), 403
-
         return decorator
-
     return wrapper
 
 
@@ -58,15 +57,11 @@ def admin_required():
         def decorator(*args, **kwargs):
             verify_jwt_in_request()
             claims = get_jwt()
-            if claims["role"] == "admin":
-                return fn(*args, **kwargs)
-            if claims["role"] == "super_admin":
+            if claims["role"] == "admin" or claims["role"] == "super_admin":
                 return fn(*args, **kwargs)
             else:
                 return jsonify({'msg': "Admins only!"}), 403
-
         return decorator
-
     return wrapper
 
 
@@ -110,16 +105,16 @@ def hello_world():  # put application's code here
     return 'Nothing to see here dawg.'
 
 
-@app.route('/random-phrase', methods=['GET'])
+@app.route('/phrase/random', methods=['GET'])
 def random_phrase():
     random_phr = list(mongo.db.phrases.aggregate([{'$sample': {'size': 1}}]))[0]
     sanitized_phr = json.loads(json_util.dumps(random_phr))
     return jsonify({'id': sanitized_phr['_id']['$oid']})
 
 
-@app.route('/phrases/<id>', methods=['GET'])
-def get_phrase(id):
-    phrase = mongo.db.phrases.find_one({'_id': ObjectId(id)})
+@app.route('/phrase/get', methods=['GET'])
+def get_phrase():
+    phrase = mongo.db.phrases.find_one({'_id': ObjectId(request.args.get('id'))})
     return jsonify({'text': phrase['text']})
 
 
@@ -137,55 +132,72 @@ def login():
     return jsonify({'msg': 'User not found'}), 404
 
 
-@app.route('/create_admin')
+@app.route('/admin/new', methods=['POST'])
 @super_admin_required()
 def create_admin():
-    username = request.json['username']
-    password = request.json['password']
-    role = request.json['role']
-
-    if mongo.db.users.find_one({'username': username, 'role': role}) is not None:
+    if mongo.db.users.find_one({'username': request.json['username'], 'role': request.json['role']}) is not None:
         return jsonify({'error': 'User already exists'})
+    mongo.db.users.insert_one({'username': request.json['username'],
+                               'password': bcrypt.hashpw(request.json['password'].encode('utf-8'), bcrypt.gensalt()),
+                               'role': 'admin'})
+    return jsonify({'msg': 'User created'})
 
-    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-    mongo.db.users.insert_one({'username': username, 'password': hashed, 'role': 'admin'})
-    return jsonify()
+
+@app.route('/admin/delete', methods=['DELETE'])
+@super_admin_required()
+def delete_admin():
+    if mongo.db.users.find_one({'_id', ObjectId(request.args.get('id'))}) is None:
+        return jsonify({'error': 'id does not exist'})
+    mongo.db.users.delete_one({'_id', ObjectId(request.args.get('id'))})
+    return jsonify({'msg': 'user deleted successfully'})
 
 
-@app.route('/possible-phrase', methods=['POST'])
+@app.route('/admin/get-all')
+def get_all_admins():
+    users = json.loads(json_util.dumps(list(mongo.db.users.find({}))))
+    return jsonify({'admins': list(map(lambda x: {'id': x['_id']['$oid'], 'username': x['username']}, users))})
+
+
+@app.route('/possible-phrase/new', methods=['POST'])
 def create_possible_phrase():
-    text = request.json['text']
-    mongo.db.psble_phrases.insert_one({'text': text})
+    mongo.db.psble_phrases.insert_one({'text': request.json['text']})
     return jsonify({'msg': 'phrase sent!'})
 
 
-@app.route('/get-possible-phrases')
+@app.route('/possible-phrases/get-all')
 @admin_required()
 def get_possible_phrases():
-    all_possible_phrases = list(mongo.db.psble_phrases.find({}))
-    sanitized_phrases = []
-    for phr in json.loads(json_util.dumps(all_possible_phrases)):
-        sanitized_phrases.append({'id': phr['_id']['$oid'], 'text': phr['text']})
-    return jsonify({'phrases': sanitized_phrases})
+    possible_phrases = list(mongo.db.psble_phrases.find({}))
+    return jsonify({'phrases': list(map(lambda x: {'id': x['_id']['$oid'], 'text': x['text']}, possible_phrases))})
 
 
-@app.route('/accept-phrase/<id>', methods=['POST'])
-def accept_phrase(id):
-    phrase = mongo.db.psble_phrases.find_one({'_id': ObjectId(id)})
+@app.route('/possible-phrase/accept', methods=['POST'])
+@admin_required()
+def accept_phrase():
+    phrase = mongo.db.psble_phrases.find_one({'_id': ObjectId(request.args.get('id'))})
     if phrase is None:
         return jsonify({'error': 'phrase does not exist!'})
     mongo.db.phrases.insert_one({'text': phrase['text']})
-    mongo.db.psble_phrases.delete_one({'_id': ObjectId(id)})
+    mongo.db.psble_phrases.delete_one({'_id': ObjectId(request.args.get('id'))})
     return jsonify({'msg': 'phrase accepted!'})
+
+
+@app.route('/possible-phrase/delete', methods=['DELETE'])
+@admin_required()
+def delete_possible_phrase():
+    if mongo.db.psble_phrases.find_one({'_id': ObjectId(request.args.get('id'))}) is None:
+        return jsonify({'error': 'id does not exists'})
+    mongo.db.psble_phrases.delete_one({'_id': ObjectId(request.args.get('id'))})
+    return jsonify({'msg': 'possible phrase removed'})
 
 
 create_super_admin()
 
 # ready: create a route to create admins only for super admins
 
-# todo: create a route to eliminate admins only for super admins
+# ready: create a route to eliminate admins only for super admins
 
-# todo: create a route list all admins
+# ready: create a route list all admins
 
 # ready: create a route to post possible phrases posted by anons
 
@@ -193,4 +205,4 @@ create_super_admin()
 
 # ready: create a route to accept a possible phrase
 
-# todo: create a route to eliminate a possible phrase
+# ready: create a route to eliminate a possible phrase
