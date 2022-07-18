@@ -1,5 +1,4 @@
 from flask import Flask, jsonify, request
-from logging.config import dictConfig
 from flask_jwt_extended import create_access_token, JWTManager, verify_jwt_in_request, get_jwt
 from flask_cors import CORS
 from flask_pymongo import PyMongo
@@ -10,23 +9,7 @@ import bcrypt
 import os
 import json
 import datetime
-from flask_swagger_ui import get_swaggerui_blueprint
 
-dictConfig({
-    'version': 1,
-    'formatters': {'default': {
-        'format': '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
-    }},
-    'handlers': {'wsgi': {
-        'class': 'logging.StreamHandler',
-        'stream': 'ext://flask.logging.wsgi_errors_stream',
-        'formatter': 'default'
-    }},
-    'root': {
-        'level': 'INFO',
-        'handlers': ['wsgi']
-    }
-})
 
 app = Flask(__name__)
 load_dotenv()
@@ -37,17 +20,6 @@ CORS(app)
 jwt = JWTManager(app)
 mongo = PyMongo(app)
 
-SWAGGER_URL = '/swagger'
-API_URL = '/static/swagger.json'
-swaggerui_blueprint = get_swaggerui_blueprint(
-    SWAGGER_URL,
-    API_URL,
-    config={
-        'app_name': 'viejo-choto-api'
-    }
-)
-
-app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
 def super_admin_required():
     def wrapper(fn):
@@ -59,7 +31,9 @@ def super_admin_required():
                 return fn(*args, **kwargs)
             else:
                 return jsonify({'msg': "Admins only!"}), 403
+
         return decorator
+
     return wrapper
 
 
@@ -73,7 +47,9 @@ def admin_required():
                 return fn(*args, **kwargs)
             else:
                 return jsonify({'msg': "Admins only!"}), 403
+
         return decorator
+
     return wrapper
 
 
@@ -176,10 +152,10 @@ def create_possible_phrase():
     return jsonify({'msg': 'phrase sent!'})
 
 
-@app.route('/possible-phrases/get-all')
+@app.route('/possible-phrase/get-all', methods=['GET'])
 @admin_required()
 def get_possible_phrases():
-    possible_phrases = list(mongo.db.psble_phrases.find({}))
+    possible_phrases = json.loads(json_util.dumps(list(mongo.db.psble_phrases.find({}))))
     return jsonify({'phrases': list(map(lambda x: {'id': x['_id']['$oid'], 'text': x['text']}, possible_phrases))})
 
 
