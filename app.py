@@ -10,15 +10,14 @@ import os
 import json
 import datetime
 
-
 app = Flask(__name__)
 load_dotenv()
 app.config['MONGO_URI'] = os.getenv('MONGODB_URI')
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = datetime.timedelta(days=1)
-CORS(app)
 jwt = JWTManager(app)
 mongo = PyMongo(app)
+CORS(app)
 
 
 def super_admin_required():
@@ -156,9 +155,14 @@ def create_possible_phrase():
 @admin_required()
 def get_possible_phrases():
     possible_phrases = json.loads(json_util.dumps(list(mongo.db.psble_phrases.find({}))))
+    print(possible_phrases)
+    if possible_phrases is None:
+        return jsonify({'phrases': []})
+
     return jsonify({'phrases': list(map(lambda x: {'id': x['_id']['$oid'], 'text': x['text']}, possible_phrases))})
 
 
+# post request always need a body for some reason
 @app.route('/possible-phrase/accept', methods=['POST'])
 @admin_required()
 def accept_phrase():
